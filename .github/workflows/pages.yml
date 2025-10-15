@@ -1,4 +1,5 @@
-name: Build & Deploy PTS JSON to Pages (every 5min)
+# .github/workflows/pages.yml
+name: Kabutan PTS auto scrape & deploy
 
 on:
   schedule:
@@ -26,17 +27,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install deps
-        run: |
-          pip install -r scraper/requirements.txt
+      - name: Install dependencies
+        run: pip install -r scraper/requirements.txt
 
-      - name: Scrape Kabutan PTS → JSON
-        run: |
-          python scraper/scrape_pts.py
+      - name: Run scraper
+        run: python scraper/scrape_pts.py
         env:
           TZ: Asia/Tokyo
 
-      - name: Upload artifact (public/)
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: public
@@ -48,6 +47,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy to GitHub Pages
+      - name: Deploy to Pages
         id: deployment
         uses: actions/deploy-pages@v4
