@@ -1,100 +1,98 @@
+# scraper/scrape_pts.py
+
 # -*- coding: utf-8 -*-
 """
-Kabutan PTS（夜間）スクレイパー → JSON出力
-- 対象: 値上がり/値下がり/出来高 (夜間PTSの警戒ページ)
-- 出力: public/pts.json
-- 実行環境: GitHub Actions (5分間隔)
-注意: スクレイピングはサイト規約を尊重してください。頻度は5分と控えめ・ヘッダ付与。
+Kabutan PTS 夜間銘柄スクレイパー（GitHub Actions用）
+出典: https://kabutan.jp/warning/pts_night_volume_ranking
+出力: public/latest.json
 """
 
-import os, json, time
+import os
+import time
 import datetime as dt
-from typing import List, Dict
 import requests
+import pandas as pd
 from bs4 import BeautifulSoup
+import jpholiday
 
-JST = dt.timezone(dt.timedelta(hours=9), name="JST")
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; pts-bot/1.0; +https://github.com/yourname/pts-night)"
-}
+# -----------------------------
+# 実行条件：昨日が平日（営業日）の翌朝のみ
+# -----------------------------
+today = dt.date.today()
+yesterday = today - dt.timedelta(days=1)
 
-TARGETS = [
-    # 株探の構成は変わり得るため、必要に応じて増減・修正してください
-    ("night_up",   "https://kabutan.jp/warning/pts_night_price_increase"),
-    ("night_down", "https://kabutan.jp/warning/pts_night_price_decrease"),
-    ("night_vol",  "https://kabutan.jp/warning/pts_night_volume"),
-]
+if yesterday.weekday() >= 5 or jpholiday.is_holiday(yesterday):
+    print(f"停止: {yesterday} は休場日です。")
+    exit()
 
-def fetch_html(url: str) -> BeautifulSoup:
-    r = requests.get(url, headers=HEADERS, timeout=30)
-    r.raise_for_status()
-    return BeautifulSoup(r.text, "lxml")
+print(f"{yesterday} は営業日。PTSスクレイピングを実行します。")
 
-def parse_table(soup: BeautifulSoup) -> List[Dict]:
-    """
-    株探の警戒ページはだいたい「table > tbody > tr > td」構造。
-    列の並びは変動し得るので、主要情報は安全に抽出。
-    """
-    data = []
-    table = soup.find("table")
-    if not table:
-        return data
-    tbody = table.find("tbody") or table
-    for tr in tbody.find_all("tr"):
-        tds = [td.get_text(strip=True) for td in tr.find_all("td")]
-        if not tds or len(tds) < 3:
+# -----------------------------
+# 設定
+# -----------------------------
+BASE_URL = "https://kabutan.jp/warning/pts_night_volume_ranking?market=0&capitalization=-1&dispmode=normal&stc=&stm=0&page="
+DATE_STR = yesterday.strftime("%Y-%m-%d")
+
+os.makedirs("public", exist_ok=True)
+
+# -----------------------------
+# スクレイピング関数
+# -----------------------------
+def scrape_page(page):
+    url = BASE_URL + str(page)
+    res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+    res.encoding = "utf-8"
+    soup = BeautifulSoup(res.text, "html.parser")
+
+    table = soup.select_one("#main > div:nth-of-type(5) > table")
+    if table is None:
+        return None
+
+    rows = []
+    for tr in table.select("tbody tr"):
+        code = tr.select_one("td.tac a")
+        name = tr.select_one("th.tal")
+        market = tr.select("td.tac")
+        if not code or not name:
             continue
 
-        # ざっくり安全に抽出（列変動に強め）
-        # 想定: [順位, コード, 銘柄名, 市場, 現在値, 前日比, 前日比%, 出来高, 時刻, ...]
-        def safe(idx, default=""):
-            try:
-                return tds[idx]
-            except IndexError:
-                return default
+        market_text = market[1].get_text(strip=True) if len(market) > 1 else ""
+        data_cells = [td.get_text(strip=True) for td in tr.find_all("td")[4:]]
 
-        code = safe(1)
-        name = safe(2)
-        market = safe(3)
-        price = safe(4)
-        diff  = safe(5)
-        rate  = safe(6)
-        vol   = safe(7)
-        at    = safe(8)
+        row = [code.get_text(strip=True), name.get_text(strip=True), market_text] + data_cells
+        rows.append(row)
+    return rows
 
-        # 数値整形はフロント側でもできるのでここでは文字列のまま
-        data.append({
-            "code": code,
-            "name": name,
-            "market": market,
-            "price": price,
-            "diff": diff,
-            "diff_rate": rate,
-            "volume": vol,
-            "time": at,
-        })
-    return data
+# -----------------------------
+# 全ページ取得
+# -----------------------------
+all_rows = []
+page = 1
+while True:
+    rows = scrape_page(page)
+    if not rows:
+        break
+    all_rows.extend(rows)
+    print(f"{page}ページ取得完了: {len(rows)}件")
+    page += 1
+    time.sleep(1)
 
-def main():
-    bundle = {
-        "generated_at": dt.datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S %Z"),
-        "sources": [],
-        "items": {},   # カテゴリ別
-    }
-    for key, url in TARGETS:
-        try:
-            soup = fetch_html(url)
-            items = parse_table(soup)
-            bundle["items"][key] = items
-            bundle["sources"].append({"key": key, "url": url})
-            time.sleep(1.0)  # 礼儀として軽くウェイト
-        except Exception as e:
-            bundle["items"][key] = []
-            bundle["sources"].append({"key": key, "url": url, "error": str(e)})
+print(f"総件数: {len(all_rows)}")
 
-    os.makedirs("public", exist_ok=True)
-    with open("public/pts.json", "w", encoding="utf-8") as f:
-        json.dump(bundle, f, ensure_ascii=False, indent=2)
+# -----------------------------
+# DataFrame化
+# -----------------------------
+columns = [
+    "コード", "銘柄名", "市場",
+    "通常取引終値", "PTS株価", "通常比", "変化率",
+    "出来高", "PER", "PBR", "利回り"
+]
+df = pd.DataFrame(all_rows, columns=columns)
+df.insert(0, "日付", DATE_STR)
 
-if __name__ == "__main__":
-    main()
+# -----------------------------
+# JSON出力
+# -----------------------------
+json_path = os.path.join("public", "latest.json")
+df.to_json(json_path, orient="records", force_ascii=False, indent=2)
+print(f"JSON出力完了: {json_path}")
