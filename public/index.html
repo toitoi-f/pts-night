@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PTSリアルタイム速報（5分更新）</title>
+<style>
+  body {
+    font-family: "Noto Sans JP", "Segoe UI", sans-serif;
+    margin: 20px;
+    background: #fff;
+    color: #333;
+  }
+  h1 {
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+  .updated {
+    color: #666;
+    font-size: 13px;
+    margin-bottom: 15px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 14px;
+  }
+  th, td {
+    border-bottom: 1px solid #eee;
+    padding: 6px 8px;
+    text-align: right;
+  }
+  th {
+    background: #f8fafc;
+    text-align: center;
+    position: sticky;
+    top: 0;
+  }
+  td:first-child, th:first-child {
+    text-align: center;
+  }
+  td:nth-child(2), th:nth-child(2) {
+    text-align: left;
+  }
+  .rise { color: #d93025; font-weight: 600; }
+  .fall { color: #1a73e8; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>PTSリアルタイム速報（5分更新）</h1>
+<p class="updated" id="updated">更新中...</p>
+<table id="tbl"></table>
+
+<script>
+(async ()=>{
+  try {
+    const res = await fetch("./latest.json?"+Date.now());
+    const data = await res.json();
+
+    document.getElementById("updated").textContent =
+      "最終更新: " + new Date().toLocaleString("ja-JP");
+
+    const headers = ["コード","銘柄名","市場","PTS株価","通常比","変化率","出来高","PER","PBR","利回り"];
+    const tbl = document.getElementById("tbl");
+    tbl.innerHTML = "<thead><tr>"+headers.map(h=>`<th>${h}</th>`).join("")+"</tr></thead><tbody></tbody>";
+    const tbody = tbl.querySelector("tbody");
+
+    data.slice(0,100).forEach(r=>{
+      const diff = r["通常比"]||"", rate = r["変化率"]||"";
+      const cls = diff.startsWith("+") ? "rise" : diff.startsWith("-") ? "fall" : "";
+      const row = `<tr>
+        <td>${r["コード"]}</td>
+        <td>${r["銘柄名"]}</td>
+        <td>${r["市場"]}</td>
+        <td>${r["PTS株価"]}</td>
+        <td class="${cls}">${diff}</td>
+        <td class="${cls}">${rate}</td>
+        <td>${r["出来高"]}</td>
+        <td>${r["PER"]}</td>
+        <td>${r["PBR"]}</td>
+        <td>${r["利回り"]}</td>
+      </tr>`;
+      tbody.insertAdjacentHTML("beforeend", row);
+    });
+  } catch(err) {
+    document.body.innerHTML = "<p style='color:red;'>データ取得エラー: "+err+"</p>";
+  }
+})();
+</script>
+</body>
+</html>
