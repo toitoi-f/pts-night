@@ -87,5 +87,14 @@
   }
 })();
 </script>
+
+<script>
+window.addEventListener("load", () => {
+  // WordPress側に高さを知らせる
+  const height = document.body.scrollHeight;
+  parent.postMessage({ type: "resize-iframe", height }, "*");
+});
+</script>
+
 </body>
 </html>
