@@ -14,11 +14,10 @@ import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 import jpholiday
-
+import json
 
 # -----------------------------
-# 実行条件：
-# 17〜翌6時台かつ、「今日 or 昨日が平日（営業日）」
+# 実行条件：17〜翌6時台かつ、「今日 or 昨日が平日（営業日）」
 # -----------------------------
 now = dt.datetime.now()
 today = now.date()
@@ -26,16 +25,25 @@ yesterday = today - dt.timedelta(days=1)
 
 # 実行時間帯チェック
 if not (17 <= now.hour or now.hour < 7):
-    print(f"実行停止: 現在{now.strftime('%H:%M')}はPTS時間外。")
-    exit()
+    print(f"実行停止: 現在{now.strftime('%H:%M')}はPTS時間外。既存JSONを維持して終了します。")
+    # latest.json が存在しない場合だけダミー出力しておく（初回保険）
+    if not os.path.exists("public/latest.json"):
+        os.makedirs("public", exist_ok=True)
+        with open("public/latest.json", "w", encoding="utf-8") as f:
+            json.dump({"message": "初回: データ未取得（PTS時間外）"}, f, ensure_ascii=False, indent=2)
+    exit(0)
 
 # 平日チェック（今日 or 昨日が平日ならOK）
 today_is_weekday = (today.weekday() < 5 and not jpholiday.is_holiday(today))
 yesterday_is_weekday = (yesterday.weekday() < 5 and not jpholiday.is_holiday(yesterday))
 
 if not (today_is_weekday or yesterday_is_weekday):
-    print(f"実行停止: {today} と {yesterday} はいずれも休場日。")
-    exit()
+    print(f"実行停止: {today} と {yesterday} はいずれも休場日。既存JSONを維持して終了します。")
+    if not os.path.exists("public/latest.json"):
+        os.makedirs("public", exist_ok=True)
+        with open("public/latest.json", "w", encoding="utf-8") as f:
+            json.dump({"message": "初回: データ未取得（休場日）"}, f, ensure_ascii=False, indent=2)
+    exit(0)
 
 print(f"✅ 実行開始: {now.strftime('%Y-%m-%d %H:%M')}（PTS時間内）")
 
