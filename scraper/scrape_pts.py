@@ -15,17 +15,29 @@ import pandas as pd
 from bs4 import BeautifulSoup
 import jpholiday
 
+
 # -----------------------------
-# 実行条件：昨日が平日（営業日）の翌朝のみ
+# 実行条件：
+# 17〜翌6時台かつ、「今日 or 昨日が平日（営業日）」
 # -----------------------------
-today = dt.date.today()
+now = dt.datetime.now()
+today = now.date()
 yesterday = today - dt.timedelta(days=1)
 
-if yesterday.weekday() >= 5 or jpholiday.is_holiday(yesterday):
-    print(f"停止: {yesterday} は休場日です。")
+# 実行時間帯チェック
+if not (17 <= now.hour or now.hour < 7):
+    print(f"実行停止: 現在{now.strftime('%H:%M')}はPTS時間外。")
     exit()
 
-print(f"{yesterday} は営業日。PTSスクレイピングを実行します。")
+# 平日チェック（今日 or 昨日が平日ならOK）
+today_is_weekday = (today.weekday() < 5 and not jpholiday.is_holiday(today))
+yesterday_is_weekday = (yesterday.weekday() < 5 and not jpholiday.is_holiday(yesterday))
+
+if not (today_is_weekday or yesterday_is_weekday):
+    print(f"実行停止: {today} と {yesterday} はいずれも休場日。")
+    exit()
+
+print(f"✅ 実行開始: {now.strftime('%Y-%m-%d %H:%M')}（PTS時間内）")
 
 # -----------------------------
 # 設定
