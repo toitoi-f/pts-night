@@ -15,6 +15,8 @@ import pandas as pd
 from bs4 import BeautifulSoup
 import jpholiday
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 
 # -----------------------------
@@ -85,20 +87,29 @@ def scrape_page(page):
     return rows
 
 # -----------------------------
-# 全ページ取得
+# 全ページ並列取得
 # -----------------------------
-all_rows = []
-page = 1
-while True:
-    rows = scrape_page(page)
-    if not rows:
-        break
-    all_rows.extend(rows)
-    print(f"{page}ページ取得完了: {len(rows)}件")
-    page += 1
-    time.sleep(1)
+def scrape_all_pages(max_pages=10):
+    all_rows = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        # 最大5並列（Kabutanに過負荷をかけすぎない範囲）
+        futures = {executor.submit(scrape_page, p): p for p in range(1, max_pages + 1)}
+        for future in as_completed(futures):
+            page = futures[future]
+            try:
+                rows = future.result()
+                if not rows:
+                    continue
+                print(f"{page}ページ取得完了: {len(rows)}件")
+                all_rows.extend(rows)
+            except Exception as e:
+                print(f"{page}ページでエラー: {e}")
+    return all_rows
 
+print("PTSデータ取得開始...")
+all_rows = scrape_all_pages(max_pages=10)  # ← ページ数は適宜調整
 print(f"総件数: {len(all_rows)}")
+
 
 # -----------------------------
 # DataFrame化
