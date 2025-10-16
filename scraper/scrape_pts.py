@@ -89,22 +89,46 @@ def scrape_page(page):
 # -----------------------------
 # 全ページ並列取得
 # -----------------------------
-def scrape_all_pages(max_pages=10):
+
+def scrape_all_pages(max_workers=10):
     all_rows = []
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        # 最大5並列（Kabutanに過負荷をかけすぎない範囲）
-        futures = {executor.submit(scrape_page, p): p for p in range(1, max_pages + 1)}
-        for future in as_completed(futures):
-            page = futures[future]
-            try:
-                rows = future.result()
-                if not rows:
-                    continue
-                print(f"{page}ページ取得完了: {len(rows)}件")
-                all_rows.extend(rows)
-            except Exception as e:
-                print(f"{page}ページでエラー: {e}")
+    page = 1
+    empty_count = 0  # 連続で空ページが来たら終了
+    max_empty = 3    # 安全停止用（例：3ページ連続で空なら終端と判断）
+
+    print("PTSデータ取得開始...")
+
+    while True:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 次の max_workers 件のページを同時取得
+            futures = {executor.submit(scrape_page, p): p for p in range(page, page + max_workers)}
+
+            has_data = False
+            for future in as_completed(futures):
+                p = futures[future]
+                try:
+                    rows = future.result()
+                    if not rows:
+                        empty_count += 1
+                        continue
+                    print(f"{p}ページ取得完了: {len(rows)}件")
+                    all_rows.extend(rows)
+                    has_data = True
+                    empty_count = 0  # データがあればリセット
+                except Exception as e:
+                    print(f"{p}ページでエラー: {e}")
+
+        if not has_data:
+            # 連続で空ページが続いたら終了
+            if empty_count >= max_empty:
+                print("空ページが続いたため終了。")
+                break
+
+        page += max_workers  # 次のグループに進む
+        time.sleep(0.5)  # Kabutanへの負荷を少し軽減
+
     return all_rows
+
 
 print("PTSデータ取得開始...")
 all_rows = scrape_all_pages(max_pages=10)  # ← ページ数は適宜調整
