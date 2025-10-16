@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 import jpholiday
 import json
 
+
 # -----------------------------
 # 実行条件：17〜翌6時台かつ、「今日 or 昨日が平日（営業日）」
 # -----------------------------
@@ -110,9 +111,24 @@ columns = [
 df = pd.DataFrame(all_rows, columns=columns)
 df.insert(0, "日付", DATE_STR)
 
+from datetime import datetime, timezone, timedelta
+JST = timezone(timedelta(hours=9))
+now = datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S JST")
+
+
 # -----------------------------
 # JSON出力
 # -----------------------------
+os.makedirs("public", exist_ok=True)
 json_path = os.path.join("public", "latest.json")
-df.to_json(json_path, orient="records", force_ascii=False, indent=2)
-print(f"JSON出力完了: {json_path}")
+
+bundle = {
+    "generated_at": now,
+    "records": df.to_dict(orient="records")
+}
+
+with open(json_path, "w", encoding="utf-8") as f:
+    json.dump(bundle, f, ensure_ascii=False, indent=2)
+
+print(f"JSON出力完了: {json_path}（生成時刻: {now}）")
+
