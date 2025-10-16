@@ -142,3 +142,10 @@ with open(json_path, "w", encoding="utf-8") as f:
     json.dump(bundle, f, ensure_ascii=False, indent=2)
 
 print(f"JSON出力完了: {json_path}（生成時刻: {now}）")
+
+
+
+
+
+
+
