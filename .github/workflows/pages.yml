@@ -4,7 +4,7 @@ name: Kabutan PTS auto scrape & deploy
 on:
   schedule:
     # JST 17:00〜翌6:45 → UTCでは 8:00〜21:45
-    - cron: "*/5 8-21 * * *"
+    - cron: "*/5 8-20 * * *"
   workflow_dispatch:
 
 
