@@ -1,12 +1,10 @@
-# .github/workflows/pages.yml
 name: Kabutan PTS auto scrape & deploy
 
 on:
   schedule:
-    # JST 17:00〜翌6:45 → UTCでは 8:00〜21:45
-    - cron: "*/5 8-20 * * *"
+    - cron: "*/5 8-14 * * *"   # JST 17:00〜23:59
+    - cron: "*/5 15-20 * * *"  # JST 00:00〜05:59
   workflow_dispatch:
-
 
 permissions:
   contents: read
@@ -33,9 +31,9 @@ jobs:
         run: pip install -r scraper/requirements.txt
 
       - name: Run scraper
-        run: python scraper/scrape_pts.py
         env:
           TZ: Asia/Tokyo
+        run: python scraper/scrape_pts.py
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
