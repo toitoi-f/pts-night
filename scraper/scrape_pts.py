@@ -90,7 +90,7 @@ def scrape_page(page):
 # 全ページ並列取得
 # -----------------------------
 
-def scrape_all_pages(max_workers=10):
+def scrape_all_pages(max_pages=10):
     all_rows = []
     page = 1
     empty_count = 0  # 連続で空ページが来たら終了
